@@ -1,24 +1,14 @@
 // App.swift
-// Hello World for Pebble Time 2, written in Embedded Swift (Swift 6.4)
+// Counter app rewritten with PebbleUI — SwiftUI-style declarative API.
 import PebbleSDK
 
-// MARK: - Static app state
-// Embedded Swift: all persistent state lives in static storage (.data / .bss ELF sections).
+// MARK: - App state (static storage, Embedded Swift constraint)
 
-private var sWindow:     UnsafeMutablePointer<Window>?    = nil
-private var sTitleLayer: UnsafeMutablePointer<TextLayer>? = nil
-private var sSubLayer:   UnsafeMutablePointer<TextLayer>? = nil
-private var sCountLayer: UnsafeMutablePointer<TextLayer>? = nil
-private var sHintLayer:  UnsafeMutablePointer<TextLayer>? = nil
 private var sCounter:    Int32 = 0
-
-// Swift 6.2: InlineArray<8, CChar> is the proper Embedded fixed-size stack buffer.
-// Replaces the old (CChar, CChar, ...) tuple hack.
 private var sCounterBuf = InlineArray<8, CChar>(repeating: 0)
+private var sCountLayer: UnsafeMutablePointer<TextLayer>? = nil
 
-// MARK: - Counter display
-
-private func updateCounterDisplay() {
+private func updateDisplay() {
     formatCounter(sCounter, into: &sCounterBuf)
     withUnsafeBytes(of: &sCounterBuf) { raw in
         if let layer = sCountLayer {
@@ -28,127 +18,55 @@ private func updateCounterDisplay() {
     }
 }
 
-// MARK: - Button handlers
-// @convention(c) closures stored in static lets — zero heap allocation,
-// compatible with Pebble's C callback ABI.
+// @convention(c) callbacks — capturing only static globals is legal in Embedded Swift.
+private let onUp:     @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in sCounter &+= 1; updateDisplay() }
+private let onSelect: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in sCounter  = 0;  updateDisplay() }
+private let onDown:   @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in sCounter &-= 1; updateDisplay() }
+private let onMount:  @convention(c) (UnsafeMutablePointer<TextLayer>?) -> Void = { sCountLayer = $0; updateDisplay() }
 
-private let onUpClick: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in
-    sCounter &+= 1   // wrapping add — no trap on overflow in Embedded
-    updateCounterDisplay()
-}
+// MARK: - Counter screen
 
-private let onDownClick: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in
-    sCounter &-= 1
-    updateCounterDisplay()
-}
+struct CounterApp: PebbleApp {
+    var backgroundColor: GColor8 { .oxfordBlue }
 
-private let onSelectClick: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in
-    sCounter = 0
-    updateCounterDisplay()
-}
+    var body: some View {
+        Text("Hello from", frame: makeGRect(x: 0, y: 20, w: 200, h: 50))
+            .font(.gothic28Bold)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
 
-private let clickConfigProvider: @convention(c) (UnsafeMutableRawPointer?) -> Void = { _ in
-    window_single_click_subscribe(BUTTON_ID_UP,     onUpClick)
-    window_single_click_subscribe(BUTTON_ID_DOWN,   onDownClick)
-    window_single_click_subscribe(BUTTON_ID_SELECT, onSelectClick)
-}
+        Text("Swift!", frame: makeGRect(x: 0, y: 56, w: 200, h: 44))
+            .font(.bitham30Black)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
 
-// MARK: - Window load
+        Divider(frame: makeGRect(x: 10, y: 110, w: 180, h: 2))
 
-private func windowLoad(window: UnsafeMutablePointer<Window>) {
-    let win = PebbleWindow(rawValue: window)
-    win.setBackgroundColor(GColorOxfordBlue)
+        Text("Counter", frame: makeGRect(x: 0, y: 122, w: 200, h: 28))
+            .font(.gothic24)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
 
-    let rootLayer = win.rootLayer          // Swift 6.4: borrow accessor
-    let bounds    = rootLayer.bounds       // Swift 6.4: borrow accessor — no copy
+        DynamicText(buf: nil, frame: makeGRect(x: 0, y: 150, w: 200, h: 56), onMount: onMount)
+            .font(.bitham42Bold)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
 
-    // ── "Hello from" ──────────────────────────────────────────
-    let title = PebbleTextLayer(frame: makeGRect(x: 0, y: 20, w: bounds.size.w, h: 50))
-    title.setText("Hello from")
-    title.setFont(fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD))
-    title.setTextColor(GColorWhite)
-    title.setBackgroundColor(GColorClear)
-    title.setAlignment(GTextAlignmentCenter)
-    rootLayer.addChild(title.layer)
-    sTitleLayer = title.rawValue
+        Text("UP +1  |  SEL 0  |  DN -1", frame: makeGRect(x: 0, y: 210, w: 200, h: 18))
+            .font(.gothic14)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
 
-    // ── "Embedded Swift!" ──────────────────────────────────────
-    let sub = PebbleTextLayer(frame: makeGRect(x: 0, y: 56, w: bounds.size.w, h: 44))
-    sub.setText("Swift!")
-    sub.setFont(fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK))
-    sub.setTextColor(GColorWhite)
-    sub.setBackgroundColor(GColorClear)
-    sub.setAlignment(GTextAlignmentCenter)
-    rootLayer.addChild(sub.layer)
-    sSubLayer = sub.rawValue
-
-    // ── Divider via canvas layer ───────────────────────────────
-    let divFrame  = makeGRect(x: 10, y: 110, w: kDisplayWidth - 20, h: 2)
-    let divLayer  = PebbleLayer(frame: divFrame)
-    divLayer.setUpdateProc { _, ctx in
-        guard let ctx else { return }
-        let r = makeGRect(x: 0, y: 0, w: kDisplayWidth - 20, h: 2)
-        graphics_context_set_fill_color(ctx, GColorWhite)
-        graphics_fill_rect(ctx, r, 0, GCornerNone)
+        ButtonHandler(.up,     action: onUp)
+        ButtonHandler(.select, action: onSelect)
+        ButtonHandler(.down,   action: onDown)
     }
-    rootLayer.addChild(divLayer)
-
-    // ── "Counter" label ────────────────────────────────────────
-    let label = PebbleTextLayer(frame: makeGRect(x: 0, y: 122, w: bounds.size.w, h: 28))
-    label.setText("Counter")
-    label.setFont(fonts_get_system_font(FONT_KEY_GOTHIC_24))
-    label.setTextColor(GColorWhite)
-    label.setBackgroundColor(GColorClear)
-    label.setAlignment(GTextAlignmentCenter)
-    rootLayer.addChild(label.layer)
-
-    // ── Counter value (large) ──────────────────────────────────
-    let count = PebbleTextLayer(frame: makeGRect(x: 0, y: 150, w: bounds.size.w, h: 56))
-    count.setFont(fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD))
-    count.setTextColor(GColorWhite)
-    count.setBackgroundColor(GColorClear)
-    count.setAlignment(GTextAlignmentCenter)
-    rootLayer.addChild(count.layer)
-    sCountLayer = count.rawValue
-    updateCounterDisplay()
-
-    // ── Button hint ────────────────────────────────────────────
-    let hint = PebbleTextLayer(frame: makeGRect(x: 0, y: 210, w: bounds.size.w, h: 18))
-    hint.setText("UP +1  |  SEL 0  |  DN -1")
-    hint.setFont(fonts_get_system_font(FONT_KEY_GOTHIC_14))
-    hint.setTextColor(GColorWhite)
-    hint.setBackgroundColor(GColorClear)
-    hint.setAlignment(GTextAlignmentCenter)
-    rootLayer.addChild(hint.layer)
-    sHintLayer = hint.rawValue
 }
 
-// MARK: - Window unload
-
-private func windowUnload() {
-    if let l = sTitleLayer { text_layer_destroy(l) }
-    if let l = sSubLayer   { text_layer_destroy(l) }
-    if let l = sCountLayer { text_layer_destroy(l) }
-    if let l = sHintLayer  { text_layer_destroy(l) }
-    sTitleLayer = nil
-    sSubLayer   = nil
-    sCountLayer = nil
-    sHintLayer  = nil
-}
-
-// MARK: - App entry point
+// MARK: - Entry point
 
 @_silgen_name("swift_app_init")
 public func swiftAppInit() {
-    let window = window_create()
-    sWindow = window
-
-    window_set_click_config_provider(window, clickConfigProvider)
-    window_stack_push(window, true)
-    windowLoad(window: window!)
-
-    app_event_loop()   // blocks; OS dispatches ticks, clicks, draw calls
-
-    windowUnload()
-    window_destroy(window)
+    formatCounter(sCounter, into: &sCounterBuf)
+    PebbleUI.run(app: CounterApp())
 }

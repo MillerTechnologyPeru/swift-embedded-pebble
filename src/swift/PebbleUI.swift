@@ -188,6 +188,21 @@ enum ViewBuilder {
     ) -> TupleView<TupleView<TupleView<TupleView<TupleView<A,B>,C>,D>,E>,F> {
         TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: a, b: b), b: c), b: d), b: e), b: f)
     }
+    static func buildBlock<A: View, B: View, C: View, D: View, E: View, F: View, G: View>(
+        _ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F, _ g: G
+    ) -> TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<A,B>,C>,D>,E>,F>,G> {
+        TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: a, b: b), b: c), b: d), b: e), b: f), b: g)
+    }
+    static func buildBlock<A: View, B: View, C: View, D: View, E: View, F: View, G: View, H: View>(
+        _ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F, _ g: G, _ h: H
+    ) -> TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<A,B>,C>,D>,E>,F>,G>,H> {
+        TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: a, b: b), b: c), b: d), b: e), b: f), b: g), b: h)
+    }
+    static func buildBlock<A: View, B: View, C: View, D: View, E: View, F: View, G: View, H: View, I: View>(
+        _ a: A, _ b: B, _ c: C, _ d: D, _ e: E, _ f: F, _ g: G, _ h: H, _ i: I
+    ) -> TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<TupleView<A,B>,C>,D>,E>,F>,G>,H>,I> {
+        TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: TupleView(a: a, b: b), b: c), b: d), b: e), b: f), b: g), b: h), b: i)
+    }
     static func buildIf<V: View>(_ v: V?) -> V? { v }
     static func buildEither<T: View, F: View>(first: T) -> ConditionalView<T, F> {
         ConditionalView(showing: .first(first))
@@ -322,6 +337,12 @@ struct Rectangle: View {
     var cornerRadius: UInt16     = 0
     var corners:      GCornerMask = GCornerNone
 
+    // Static slots: in Embedded Swift, @convention(c) closures can't capture context,
+    // so draw params are written to statics at mount time and read back in the proc.
+    private static var _color:        GColor8     = GColorWhite
+    private static var _cornerRadius: UInt16      = 0
+    private static var _corners:      GCornerMask = GCornerNone
+
     init(frame: GRect) { self.frame = frame }
 
     func fill(_ c: GColor8)           -> Rectangle { var s = self; s.color = c;        return s }
@@ -329,13 +350,13 @@ struct Rectangle: View {
     func cornerMask(_ m: GCornerMask) -> Rectangle { var s = self; s.corners = m;       return s }
 
     func mount(in parent: PebbleLayer, bounds: GRect) {
-        let f = frame; let c = color; let cr = cornerRadius; let cm = corners
-        let layer = PebbleLayer(frame: f)
+        Rectangle._color = color; Rectangle._cornerRadius = cornerRadius; Rectangle._corners = corners
+        let layer = PebbleLayer(frame: frame)
         layer.setUpdateProc { layerPtr, ctx in
             guard let ctx, let layerPtr else { return }
             let b = layer_get_bounds(layerPtr)
-            graphics_context_set_fill_color(ctx, c)
-            graphics_fill_rect(ctx, b, cr, cm)
+            graphics_context_set_fill_color(ctx, Rectangle._color)
+            graphics_fill_rect(ctx, b, Rectangle._cornerRadius, Rectangle._corners)
         }
         parent.addChild(layer)
     }
@@ -348,6 +369,9 @@ struct Circle: View {
     var radius: UInt16
     var color:  GColor8 = .white
 
+    private static var _radius: UInt16  = 0
+    private static var _color:  GColor8 = GColorWhite
+
     init(center: GPoint, radius: UInt16) {
         self.center = center
         self.radius = radius
@@ -356,10 +380,11 @@ struct Circle: View {
     func fill(_ c: GColor8) -> Circle { var s = self; s.color = c; return s }
 
     func mount(in parent: PebbleLayer, bounds: GRect) {
-        let cx = center; let r = radius; let c = color
+        Circle._radius = radius; Circle._color = color
+        let r = radius
         let frameSize = Int16(r) &* 2
         let frame = makeGRect(
-            x: cx.x - Int16(r), y: cx.y - Int16(r),
+            x: center.x - Int16(r), y: center.y - Int16(r),
             w: frameSize, h: frameSize
         )
         let layer = PebbleLayer(frame: frame)
@@ -367,8 +392,8 @@ struct Circle: View {
             guard let ctx, let layerPtr else { return }
             let b = layer_get_bounds(layerPtr)
             let localCenter = makeGPoint(x: b.size.w / 2, y: b.size.h / 2)
-            graphics_context_set_fill_color(ctx, c)
-            graphics_fill_circle(ctx, localCenter, r)
+            graphics_context_set_fill_color(ctx, Circle._color)
+            graphics_fill_circle(ctx, localCenter, Circle._radius)
         }
         parent.addChild(layer)
     }
@@ -377,19 +402,21 @@ struct Circle: View {
 // MARK: Divider
 
 struct Divider: View {
-    var frame:  GRect
-    var color:  GColor8 = .white
+    var frame: GRect
+    var color: GColor8 = .white
+
+    private static var _color: GColor8 = GColorWhite
 
     init(frame: GRect) { self.frame = frame }
     func foregroundColor(_ c: GColor8) -> Divider { var s = self; s.color = c; return s }
 
     func mount(in parent: PebbleLayer, bounds: GRect) {
-        let f = frame; let c = color
-        let layer = PebbleLayer(frame: f)
+        Divider._color = color
+        let layer = PebbleLayer(frame: frame)
         layer.setUpdateProc { layerPtr, ctx in
             guard let ctx, let layerPtr else { return }
             let b = layer_get_bounds(layerPtr)
-            graphics_context_set_fill_color(ctx, c)
+            graphics_context_set_fill_color(ctx, Divider._color)
             graphics_fill_rect(ctx, b, 0, GCornerNone)
         }
         parent.addChild(layer)
