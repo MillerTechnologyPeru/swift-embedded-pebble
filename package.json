@@ -1,0 +1,22 @@
+{
+  "name": "pebble-swift-hello",
+  "author": "Alsey Coleman Miller",
+  "version": "1.0.0",
+  "keywords": ["swift", "embedded", "hello-world"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Pebble Swift Hello",
+    "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "sdkVersion": "3",
+    "enableMultiJS": false,
+    "targetPlatforms": ["emery"],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    }
+  }
+}
