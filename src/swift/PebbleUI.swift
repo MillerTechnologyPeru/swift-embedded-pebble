@@ -423,6 +423,60 @@ struct Divider: View {
     }
 }
 
+// MARK: Image
+// Draws a raster image (GBitmap) loaded from a bundled resource. Pass a
+// resource id obtained from the C bridge, e.g. `swift_resource_id_swift_logo()`.
+// The bitmap is drawn at the layer's origin at its natural size, so size the
+// `frame` to match the asset to avoid clipping. PNG transparency is honoured
+// via GCompOpSet.
+
+struct Image: View {
+    var frame:        GRect
+    let resourceID:   UInt32
+    var background:   GColor8 = .clear   // optional card drawn behind the bitmap
+    var cornerRadius: UInt16  = 0
+
+    // Embedded Swift @convention(c) update procs can't capture context, so the
+    // loaded bitmap and draw params live in static storage and are read back
+    // inside the proc.
+    private static var _bitmap: OpaquePointer? = nil
+    private static var _bg:     GColor8 = GColorClear
+    private static var _corner: UInt16  = 0
+
+    init(resourceID: UInt32, frame: GRect) {
+        self.resourceID = resourceID
+        self.frame      = frame
+    }
+
+    func background(_ c: GColor8)     -> Image { var s = self; s.background = c;   return s }
+    func cornerRadius(_ r: UInt16)    -> Image { var s = self; s.cornerRadius = r; return s }
+
+    func mount(in parent: PebbleLayer, bounds: GRect) {
+        Image._bitmap = gbitmap_create_with_resource(resourceID)
+        Image._bg     = background
+        Image._corner = cornerRadius
+        let layer = PebbleLayer(frame: frame)
+        layer.setUpdateProc { layerPtr, ctx in
+            guard let ctx, let layerPtr, let bmp = Image._bitmap else { return }
+            let b = layer_get_bounds(layerPtr)
+            if Image._bg.argb != 0 {   // non-clear background → draw a filled card
+                graphics_context_set_fill_color(ctx, Image._bg)
+                graphics_fill_rect(ctx, b, Image._corner, GCornersAll)
+            }
+            // Center the bitmap (drawn at natural size) within the layer bounds.
+            let bmp_b = gbitmap_get_bounds(bmp)
+            let dst = makeGRect(
+                x: b.origin.x + (b.size.w - bmp_b.size.w) / 2,
+                y: b.origin.y + (b.size.h - bmp_b.size.h) / 2,
+                w: bmp_b.size.w, h: bmp_b.size.h
+            )
+            graphics_context_set_compositing_mode(ctx, GCompOpSet)
+            graphics_draw_bitmap_in_rect(ctx, bmp, dst)
+        }
+        parent.addChild(layer)
+    }
+}
+
 // MARK: Canvas (custom draw)
 // Gives you a raw GraphicsContext for fully custom drawing.
 

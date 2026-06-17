@@ -19,4 +19,5 @@
 #include "pebble/fonts.h"
 #include "pebble/graphics.h"
 #include "pebble/layers.h"
+#include "pebble/bitmap.h"
 #include "pebble/app.h"

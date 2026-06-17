@@ -35,10 +35,11 @@ struct CounterApp: PebbleApp {
             .foregroundColor(.white)
             .multilineTextAlignment(.center)
 
-        Text("Swift!", frame: makeGRect(x: 0, y: 56, w: 200, h: 44))
-            .font(.bitham30Black)
-            .foregroundColor(.white)
-            .multilineTextAlignment(.center)
+        // Swift logo (bundled transparent PNG) — replaces the old "Swift!" text.
+        // The white-wordmark variant reads against the dark background, so the
+        // image is drawn with transparency (GCompOpSet) and no backing card.
+        Image(resourceID: swift_resource_id_swift_logo(),
+              frame: makeGRect(x: 6, y: 52, w: 188, h: 64))
 
         Divider(frame: makeGRect(x: 10, y: 110, w: 180, h: 2))
 

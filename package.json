@@ -16,7 +16,13 @@
     },
     "messageKeys": [],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMAGE_SWIFT_LOGO",
+          "file": "swift_logo.png"
+        }
+      ]
     }
   }
 }
