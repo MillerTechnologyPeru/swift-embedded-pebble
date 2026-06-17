@@ -17,67 +17,6 @@ buttons (↑ increment, ● reset, ↓ decrement).
 
 Swift target triple: `armv8m.main-none-none-eabi`
 
-## Swift 6.2 / 6.3 / 6.4 changes applied
-
-### Swift 6.2 (released Sept 2025)
-- **Full `String` APIs in Embedded** — `String` now works in Embedded Swift.
-  For Pebble we still pass C strings to `text_layer_set_text`, but `String`
-  can now be used for intermediate formatting without a heap allocator if
-  you use stack-allocated storage.
-- **`InlineArray<N, T>`** — new fixed-size stack array type. Replaces the
-  old `(CChar, CChar, CChar, ...)` tuple hack for the counter string buffer:
-  ```swift
-  // Before (Swift 6.0/6.1):
-  private var sCounterBuf: (CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar) = (0x30, 0, ...)
-
-  // After (Swift 6.2+):
-  private var sCounterBuf = InlineArray<8, CChar>(repeating: 0)
-  ```
-- **`any` types for class-constrained protocols** — available in Embedded.
-  Not used here (no class types on bare-metal), but unlocks richer abstraction
-  patterns for the future SwiftUI-style library.
-
-### Swift 6.3 (released March 2026)
-- **`@c` attribute (SE-0495)** — replaces `@_silgen_name` for C-exported functions.
-  `@c("swift_app_init")` gives the function a predictable C symbol name AND
-  emits a validated declaration in the generated C header:
-  ```swift
-  // Before (Swift 6.0–6.2):
-  @_silgen_name("swift_app_init")
-  public func swiftAppInit() { ... }
-
-  // After (Swift 6.3+):
-  @c("swift_app_init")
-  public func swiftAppInit() { ... }
-  ```
-  `main.c` can now `#include "build/PebbleApp-Swift.h"` and get a
-  compiler-validated signature instead of a hand-written `extern void` decl.
-- **`@c @implementation`** — implement a C-declared function in Swift with
-  compiler signature validation. Use once `swift_app_init` is in a C header.
-- **`EmbeddedRestrictions` diagnostic group** — on by default in Swift 6.3.
-  Warns about language constructs unavailable in Embedded (untyped throws,
-  generic calls on existentials, etc.). This codebase is fully compliant;
-  run `make diagnostics` to confirm.
-- **Improved C pointer nullability tolerance** — no more cryptic
-  "deserialization failure" when nullability annotations differ between
-  a Swift declaration and a C header.
-- **Float/Double `description` in Embedded** — floating-point printing now
-  works in Embedded Swift. Useful for debugging sensor values.
-
-### Swift 6.4 (WWDC26, June 2026)
-- **`borrow`/`mutate` accessors** — `PebbleSDK.swift` uses `borrow` for
-  computed properties like `rootLayer` and `bounds`, avoiding a copy of the
-  `GRect` / `PebbleLayer` value:
-  ```swift
-  var bounds: GRect {
-      borrow { layer_get_bounds(rawValue) }
-  }
-  ```
-- **Wrapping arithmetic operators (`&+`, `&-`)** — used for the counter
-  to avoid a runtime trap on overflow (Embedded has no overflow handler).
-- **`anyAppleOS` / `@diagnose`** — host-side tooling improvements; no
-  impact on bare-metal Embedded code.
-
 ## Project layout
 
 ```
