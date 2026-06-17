@@ -3,6 +3,8 @@
 A **Hello World** Pebble app for the **Pebble Time 2** (`emery` platform),
 written in **Embedded Swift**, updated for **Swift 6.2 / 6.3 / 6.4**.
 
+<img width="200" height="228" alt="pebble_screenshot" src="https://github.com/user-attachments/assets/1ba6b93d-3d72-494e-bdfe-18f67a6b21b6" />
+
 The app shows a title, a live counter, and wires up the three right-side
 buttons (↑ increment, ● reset, ↓ decrement).
 
