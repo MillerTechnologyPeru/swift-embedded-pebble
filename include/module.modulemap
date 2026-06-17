@@ -1,0 +1,4 @@
+module PebbleSDK {
+    header "pebble.h"
+    export *
+}
